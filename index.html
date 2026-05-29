@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CoverGen — Procedural Art</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --accent: #7c5cfc;
+    --accent2: #fc5ca0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: 56px 1fr;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 12px;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header span {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  aside {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .control-group { display: flex; flex-direction: column; gap: 14px; }
+
+  label {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  label span { color: var(--text); font-weight: 500; }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 4px;
+    cursor: pointer;
+  }
+
+  select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6b80' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+  }
+
+  select:focus { outline: none; border-color: var(--accent); }
+
+  .mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .mode-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+
+  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+  .mode-btn.active { border-color: var(--accent); background: rgba(124,92,252,0.15); color: var(--accent); font-weight: 500; }
+
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .pal-btn {
+    height: 32px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+    position: relative;
+  }
+
+  .pal-btn:hover { transform: scale(1.05); }
+  .pal-btn.active { border-color: white; }
+  .pal-btn title { display: none; }
+
+  .generate-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    margin-top: auto;
+  }
+
+  .generate-btn:hover { opacity: 0.9; }
+  .generate-btn:active { transform: scale(0.98); }
+  .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .download-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    display: none;
+  }
+
+  .download-btn:hover { border-color: var(--accent); }
+
+  main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--bg);
+    position: relative;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    max-width: 100%;
+    max-height: calc(100vh - 56px - 48px);
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    max-width: 100%;
+    max-height: calc(100vh - 56px - 48px);
+    border-radius: 12px;
+    display: block;
+  }
+
+  #placeholder {
+    width: min(600px, calc(100vw - 320px - 48px));
+    aspect-ratio: 1;
+    border-radius: 12px;
+    border: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+  }
+
+  #placeholder svg { opacity: 0.3; }
+  #placeholder p { font-size: 15px; }
+  #placeholder small { font-size: 13px; opacity: 0.6; }
+
+  #progress {
+    position: absolute;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--muted);
+    display: none;
+    white-space: nowrap;
+  }
+
+  .size-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .size-row input[type=number] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .size-row input[type=number]:focus { outline: none; border-color: var(--accent); }
+
+  @media (max-width: 700px) {
+    body { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+    aside { border-right: none; border-bottom: 1px solid var(--border); max-height: 420px; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CoverGen</h1>
+  <span>Procedural Art Generator</span>
+</header>
+
+<aside>
+  <div>
+    <div class="section-label">Mode</div>
+    <div class="mode-grid" id="mode-grid"></div>
+  </div>
+
+  <div>
+    <div class="section-label">Palette</div>
+    <div class="palette-grid" id="palette-grid"></div>
+  </div>
+
+  <div class="control-group">
+    <div class="section-label">Parameters</div>
+
+    <div>
+      <label>Frequency <span id="freq-val">3.0</span></label>
+      <input type="range" id="freq" min="0.1" max="20" step="0.1" value="3.0">
+    </div>
+
+    <div>
+      <label>Distortion <span id="dist-val">0.5</span></label>
+      <input type="range" id="dist" min="0" max="5" step="0.05" value="0.5">
+    </div>
+
+    <div>
+      <label>Octaves <span id="oct-val">4</span></label>
+      <input type="range" id="oct" min="1" max="8" step="1" value="4">
+    </div>
+
+    <div>
+      <label>Seed <span id="seed-val">42</span></label>
+      <input type="range" id="seed" min="0" max="999" step="1" value="42">
+    </div>
+
+    <div>
+      <div class="section-label" style="margin-bottom:6px">Size</div>
+      <div class="size-row">
+        <input type="number" id="w" value="800" min="100" max="2000" placeholder="Width">
+        <input type="number" id="h" value="800" min="100" max="2000" placeholder="Height">
+      </div>
+    </div>
+  </div>
+
+  <button class="generate-btn" id="gen-btn" onclick="generate()">Generate</button>
+  <a class="download-btn" id="dl-btn">Download PNG</a>
+</aside>
+
+<main>
+  <div id="canvas-wrap">
+    <div id="placeholder">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" stroke-width="2"/>
+        <circle cx="24" cy="24" r="5" stroke="currentColor" stroke-width="2"/>
+        <path d="M8 40l14-14 10 10 8-8 16 16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <p>Your art will appear here</p>
+      <small>Configure settings and hit Generate</small>
+    </div>
+    <canvas id="canvas" style="display:none"></canvas>
+  </div>
+  <div id="progress">Rendering...</div>
+</main>
+
+<script>
+const PALETTES = {
+  neon_void:    [[10,0,30],[80,0,120],[200,0,255],[255,100,200],[255,220,100]],
+  aurora:       [[0,20,40],[0,100,80],[50,200,150],[150,255,200],[220,255,240]],
+  solar_flare:  [[20,5,0],[150,30,0],[255,100,20],[255,200,50],[255,240,180]],
+  deep_ocean:   [[0,10,40],[0,40,100],[20,80,180],[60,140,255],[150,200,255]],
+  monochrome:   [[10,10,10],[50,50,50],[120,120,120],[200,200,200],[240,240,240]],
+  toxic_race:   [[5,10,15],[20,40,35],[0,200,115],[180,255,0],[240,255,150]],
+  yug_lean:     [[20,10,25],[65,15,85],[130,30,120],[255,0,128],[0,255,230]],
+  acid_techno:  [[12,12,14],[60,25,10],[160,50,20],[100,210,0],[210,255,60]],
+  tokyo_rain:   [[5,5,20],[15,30,90],[0,128,255],[255,0,100],[255,200,220]],
+  supernova:    [[5,0,15],[40,10,70],[160,20,100],[255,100,50],[255,240,200]],
+  cosmic_ice:   [[15,10,25],[30,50,110],[70,130,200],[170,220,255],[245,250,255]],
+  magma_core:   [[25,10,30],[90,15,40],[190,45,20],[255,140,0],[255,230,60]],
+  liquid_gold:  [[12,12,15],[45,35,20],[140,105,50],[215,175,95],[245,235,215]],
+  andromeda:    [[10,5,35],[30,20,90],[110,20,130],[220,40,150],[255,180,220]],
+  analog_dream: [[40,35,45],[110,95,120],[215,145,130],[235,190,150],[225,215,190]],
+};
+
+const MODES = {
+  flow:    'Organic Flow',
+  shatter: 'Geo Shatter',
+  glitch:  'Glitch Sort',
+  synth:   'Synth Wave',
+  plasma:  'Plasma',
+  flame:   'Fractal Flame',
+  crystal: 'Crystal Growth',
+  neural:  'Neural Static',
+  vortex:  'Vortex Field',
+  moire:   'Moiré Web',
+};
+
+let currentMode = 'flow';
+let currentPalette = 'neon_void';
+
+// Build mode buttons
+const modeGrid = document.getElementById('mode-grid');
+for (const [key, label] of Object.entries(MODES)) {
+  const btn = document.createElement('button');
+  btn.className = 'mode-btn' + (key === currentMode ? ' active' : '');
+  btn.textContent = label;
+  btn.onclick = () => {
+    currentMode = key;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+  modeGrid.appendChild(btn);
+}
+
+// Build palette swatches
+const palGrid = document.getElementById('palette-grid');
+for (const [key, stops] of Object.entries(PALETTES)) {
+  const btn = document.createElement('button');
+  btn.className = 'pal-btn' + (key === currentPalette ? ' active' : '');
+  btn.title = key.replace(/_/g,' ');
+  const mid = stops[Math.floor(stops.length/2)];
+  const last = stops[stops.length-1];
+  btn.style.background = `linear-gradient(135deg, rgb(${stops[0].join(',')}) 0%, rgb(${mid.join(',')}) 50%, rgb(${last.join(',')}) 100%)`;
+  btn.onclick = () => {
+    currentPalette = key;
+    document.querySelectorAll('.pal-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+  palGrid.appendChild(btn);
+}
+
+// Slider readouts
+for (const [id, outId] of [['freq','freq-val'],['dist','dist-val'],['oct','oct-val'],['seed','seed-val']]) {
+  const el = document.getElementById(id);
+  el.oninput = () => document.getElementById(outId).textContent = parseFloat(el.value).toFixed(id==='oct'||id==='seed'?0:1);
+}
+
+// ─── Perlin Noise ───────────────────────────────────────────
+function makePerlin(seed) {
+  const p = new Uint8Array(512);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  let s = seed >>> 0;
+  for (let i = 255; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 256; i++) p[i+256] = p[i];
+
+  const GRADS = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+  function fade(t) { return t*t*t*(t*(t*6-15)+10); }
+  function lerp(t,a,b) { return a+t*(b-a); }
+  function grad2d(hash, x, y) { const g=GRADS[hash&7]; return g[0]*x+g[1]*y; }
+
+  function noise2d(x, y) {
+    const xi = Math.floor(x)&255, yi = Math.floor(y)&255;
+    const xf = x-Math.floor(x), yf = y-Math.floor(y);
+    const u = fade(xf), v = fade(yf);
+    const aa=p[p[xi]+yi], ab=p[p[xi]+yi+1], ba=p[p[xi+1]+yi], bb=p[p[xi+1]+yi+1];
+    return lerp(v, lerp(u,grad2d(aa,xf,yf),grad2d(ba,xf-1,yf)),
+                   lerp(u,grad2d(ab,xf,yf-1),grad2d(bb,xf-1,yf-1)));
+  }
+
+  function fbm(x, y, octaves, freq, lacunarity=2, gain=0.5) {
+    let v=0, amp=0.5, maxV=0;
+    for (let i=0; i<octaves; i++) {
+      v += noise2d(x*freq, y*freq)*amp;
+      maxV += amp; amp *= gain; freq *= lacunarity;
+    }
+    return v/maxV;
+  }
+
+  return { noise2d, fbm };
+}
+
+// ─── Palette sampler ────────────────────────────────────────
+function samplePalette(t, pal) {
+  t = Math.min(1, Math.max(0, (t+1)*0.5));
+  const idx = t*(pal.length-1);
+  const i = Math.min(Math.floor(idx), pal.length-2);
+  const frac = idx-i;
+  return [
+    pal[i][0] + frac*(pal[i+1][0]-pal[i][0]),
+    pal[i][1] + frac*(pal[i+1][1]-pal[i][1]),
+    pal[i][2] + frac*(pal[i+1][2]-pal[i][2]),
+  ];
+}
+
+// ─── Renderers ──────────────────────────────────────────────
+function renderOrganicFlow(data, W, H, noise, pal, freq, oct, dist) {
+  for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+    const nx=x/W, ny=y/H;
+    const dx = dist*noise.fbm(nx+5.2,ny+1.3,oct,freq*0.5);
+    const dy = dist*noise.fbm(nx+9.1,ny+7.8,oct,freq*0.5);
+    const n  = noise.fbm(nx+dx, ny+dy, oct, freq);
+    const [r,g,b] = samplePalette(n, pal);
+    const i=(y*W+x)*4; data[i]=r; data[i+1]=g; data[i+2]=b; data[i+3]=255;
+  }
+}
+
+function renderGeometricShatter(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const N = Math.floor(20+freq*3);
+  let s = seed>>>0;
+  function rnd() { s=(Math.imul(s,1664525)+1013904223)>>>0; return s/0xFFFFFFFF; }
+  const sites = [];
+  for (let k=0; k<N; k++) sites.push({x:rnd()*W, y:rnd()*H, col:samplePalette(rnd()*2-1, pal)});
+  for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+    const nx=x/W, ny=y/H;
+    const wx = dist*50*noise.fbm(nx,ny,2,freq*0.3);
+    const wy = dist*50*noise.fbm(nx+1,ny+1,2,freq*0.3);
+    let bestD=1e9, bestI=0;
+    for (let k=0; k<N; k++) {
+      const d2=(x+wx-sites[k].x)**2+(y+wy-sites[k].y)**2;
+      if (d2<bestD){bestD=d2; bestI=k;}
+    }
+    const [r,g,b]=sites[bestI].col;
+    const i=(y*W+x)*4; data[i]=r; data[i+1]=g; data[i+2]=b; data[i+3]=255;
+  }
+}
+
+function renderGlitchSort(data, W, H, noise, pal, freq, oct, dist, seed) {
+  for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+    const n=noise.fbm(x/W,y/H,oct,freq);
+    const [r,g,b]=samplePalette(n,pal);
+    const i=(y*W+x)*4; data[i]=r; data[i+1]=g; data[i+2]=b; data[i+3]=255;
+  }
+  let s=seed>>>0;
+  function rnd(){s=(Math.imul(s,1664525)+1013904223)>>>0; return s/0xFFFFFFFF;}
+  const slices=Math.floor(10+dist*20);
+  for(let k=0;k<slices;k++){
+    const sy=Math.floor(rnd()*H), sh=1+Math.floor(rnd()*8);
+    const off=Math.floor((rnd()*2-1)*dist*80);
+    if(off===0) continue;
+    for(let y=sy;y<Math.min(sy+sh,H);y++){
+      if(off>0) for(let x=W-1;x>=off;x--){
+        const dst=(y*W+x)*4,src=(y*W+(x-off))*4;
+        data[dst]=data[src];data[dst+1]=data[src+1];data[dst+2]=data[src+2];
+      } else {
+        const ab=Math.abs(off);
+        for(let x=0;x<W-ab;x++){
+          const dst=(y*W+x)*4,src=(y*W+(x+ab))*4;
+          data[dst]=data[src];data[dst+1]=data[src+1];data[dst+2]=data[src+2];
+        }
+      }
+    }
+  }
+  for(let b=0;b<5;b++){
+    const by=Math.floor(rnd()*H), bh=1+Math.floor(rnd()*3);
+    for(let y=by;y<Math.min(by+bh,H);y++) for(let x=0;x<W;x++){
+      const i=(y*W+x)*4; data[i]=255-data[i]; data[i+1]=255-data[i+1]; data[i+2]=255-data[i+2];
+    }
+  }
+}
+
+function renderSynthWave(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const cx=W/2, cy=H/2;
+  const maxD=Math.sqrt(cx*cx+cy*cy);
+  const sf=seed*0.001;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const dx=x-cx, dy=y-cy;
+    const dist2=Math.sqrt(dx*dx+dy*dy);
+    const angle=Math.atan2(dy,dx);
+    const wave=Math.sin(angle*freq*4+sf);
+    const rMod=dist2+wave*(dist*40);
+    const norm=(rMod/maxD)*2-1;
+    const [r,g,b]=samplePalette(norm,pal);
+    const i=(y*W+x)*4; data[i]=r; data[i+1]=g; data[i+2]=b; data[i+3]=255;
+  }
+}
+
+function renderPlasma(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const sf=seed*0.001;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const fx=x/W*freq, fy=y/H*freq;
+    const v1=Math.sin(fx+sf), v2=Math.sin(fy+sf), v3=Math.sin(fx+fy+sf);
+    const pcx=fx+dist*Math.sin(sf), pcy=fy+dist*Math.cos(sf);
+    const v4=Math.sin(Math.sqrt(pcx*pcx+pcy*pcy)+sf);
+    const [r,g,b]=samplePalette((v1+v2+v3+v4)/4,pal);
+    const i=(y*W+x)*4; data[i]=r; data[i+1]=g; data[i+2]=b; data[i+3]=255;
+  }
+}
+
+function renderFractalFlame(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const sf=seed*0.001;
+  const acc=new Float32Array(W*H);
+  const ITER=W*H*6, WARMUP=20;
+  let s=seed>>>0;
+  function rnd(){s=(Math.imul(s,1664525)+1013904223)>>>0; return (s/0xFFFFFFFF)*2-1;}
+  let px=rnd(), py=rnd();
+  for(let i=0;i<ITER+WARMUP;i++){
+    const fn=Math.floor(Math.abs(noise.noise2d(px*freq,py*freq))*4)%4;
+    let nx,ny;
+    if(fn===0){nx=Math.sin(px+sf);ny=Math.sin(py+sf);}
+    else if(fn===1){const r2=px*px+py*py+1e-6;nx=px/r2;ny=py/r2;}
+    else if(fn===2){const r2=px*px+py*py;nx=px*Math.sin(r2)-py*Math.cos(r2);ny=px*Math.cos(r2)+py*Math.sin(r2);}
+    else{const r=Math.sqrt(px*px+py*py)+1e-6;nx=(px-py)*(px+py)/r;ny=2*px*py/r;}
+    px=nx+dist*0.3*noise.fbm(nx,ny,2,freq);
+    py=ny+dist*0.3*noise.fbm(ny,nx,2,freq);
+    if(i<WARMUP) continue;
+    const ix=Math.floor((px+2)/4*W), iy=Math.floor((py+2)/4*H);
+    if(ix>=0&&ix<W&&iy>=0&&iy<H) acc[iy*W+ix]+=1;
+  }
+  // blur pass
+  const BLUR=2;
+  const blurred=new Float32Array(W*H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    let sum=0,cnt=0;
+    for(let dy=-BLUR;dy<=BLUR;dy++) for(let dx=-BLUR;dx<=BLUR;dx++){
+      const nx2=x+dx,ny2=y+dy;
+      if(nx2>=0&&nx2<W&&ny2>=0&&ny2<H){sum+=acc[ny2*W+nx2];cnt++;}
+    }
+    blurred[y*W+x]=sum/cnt;
+  }
+  let maxV=0; for(let k=0;k<blurred.length;k++) if(blurred[k]>maxV) maxV=blurred[k];
+  if(maxV<1e-6) maxV=1;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const v=blurred[y*W+x];
+    let t=v>0?Math.log1p(v)/Math.log1p(maxV):0;
+    t=t*2-1;
+    const i=(y*W+x)*4;
+    if(v<1e-6){data[i]=0;data[i+1]=0;data[i+2]=0;data[i+3]=255; continue;}
+    const [r,g,b]=samplePalette(t,pal);
+    data[i]=r;data[i+1]=g;data[i+2]=b;data[i+3]=255;
+  }
+}
+
+function renderCrystalGrowth(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const sf=seed*0.001;
+  const N=Math.floor(15+freq*5);
+  let s=seed>>>0;
+  function rnd(){s=(Math.imul(s,1664525)+1013904223)>>>0; return s/0xFFFFFFFF;}
+  const sites=[];
+  for(let k=0;k<N;k++) sites.push({x:rnd(),y:rnd()});
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const nx=x/W, ny=y/H;
+    const wx=dist*noise.fbm(nx+sf,ny,oct,freq);
+    const wy=dist*noise.fbm(nx,ny+sf,oct,freq);
+    const fx=nx+wx*0.3, fy=ny+wy*0.3;
+    let d1=1e9,d2=1e9;
+    for(const s of sites){
+      const d=(fx-s.x)**2+(fy-s.y)**2;
+      if(d<d1){d2=d1;d1=d;}else if(d<d2){d2=d;}
+    }
+    const edge=Math.sqrt(d2)-Math.sqrt(d1);
+    const inner=noise.fbm(fx*freq,fy*freq,oct,1.5);
+    const t=Math.tanh(edge*8)*0.7+inner*0.3;
+    const [r,g,b]=samplePalette(t*2-1,pal);
+    const i=(y*W+x)*4; data[i]=r;data[i+1]=g;data[i+2]=b;data[i+3]=255;
+  }
+}
+
+function renderNeuralStatic(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const sf=seed*0.001;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const nx=x/W, ny=y/H;
+    const q0=noise.fbm(nx+sf,ny,oct,freq);
+    const q1=noise.fbm(ny+sf+3.7,nx+1.4,oct,freq);
+    const r0=noise.fbm(nx+dist*q0+sf,ny+dist*q1,oct,freq*1.5);
+    const r1=noise.fbm(nx+dist*q1+2.1,ny+dist*q0+5.3,oct,freq*1.5);
+    const sv=noise.fbm(nx+dist*r0,ny+dist*r1,oct,freq*2);
+    let t=Math.sin(sv*12+sf)*0.5+0.5;
+    t=Math.pow(t,1.5)*2-1;
+    const [r,g,b]=samplePalette(t,pal);
+    const i=(y*W+x)*4; data[i]=r;data[i+1]=g;data[i+2]=b;data[i+3]=255;
+  }
+}
+
+function renderVortexField(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const sf=seed*0.001;
+  const eps=1/W;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const nx=x/W, ny=y/H;
+    const f0=noise.fbm(nx,ny,oct,freq);
+    const fdx=noise.fbm(nx+eps,ny,oct,freq);
+    const fdy=noise.fbm(nx,ny+eps,oct,freq);
+    const curlX=(fdy-f0)/eps, curlY=-(fdx-f0)/eps;
+    const steps=Math.floor(6+dist*4);
+    let px=nx,py=ny;
+    for(let k=0;k<steps;k++){
+      const cf=noise.fbm(px+sf,py,oct,freq);
+      const cdx=noise.fbm(px+eps+sf,py,oct,freq);
+      const cdy=noise.fbm(px+sf,py+eps,oct,freq);
+      px+=((cdy-cf)/eps)*0.01*dist;
+      py-=((cdx-cf)/eps)*0.01*dist;
+    }
+    let t=noise.fbm(px,py,oct,freq*0.5)+curlX*0.1+curlY*0.1;
+    t=Math.min(1,Math.max(-1,t));
+    const [r,g,b]=samplePalette(t,pal);
+    const i=(y*W+x)*4; data[i]=r;data[i+1]=g;data[i+2]=b;data[i+3]=255;
+  }
+}
+
+function renderMoireWeb(data, W, H, noise, pal, freq, oct, dist, seed) {
+  const sf=seed*0.001;
+  const LAYERS=4;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    let nx=x/W-0.5, ny=y/H-0.5;
+    const wx=dist*noise.fbm(nx+sf,ny,2,freq*0.3);
+    const wy=dist*noise.fbm(nx,ny+sf,2,freq*0.3);
+    nx+=wx*0.15; ny+=wy*0.15;
+    let sum=0;
+    for(let l=0;l<LAYERS;l++){
+      const angle=l*(Math.PI/LAYERS)+sf;
+      const rx=nx*Math.cos(angle)+ny*Math.sin(angle);
+      const ry=-nx*Math.sin(angle)+ny*Math.cos(angle);
+      sum+=Math.sin(rx*freq*Math.PI*2)*Math.cos(ry*freq*Math.PI*2*0.97);
+    }
+    const t=Math.min(1,Math.max(-1,sum/LAYERS));
+    const [r,g,b]=samplePalette(t,pal);
+    const i=(y*W+x)*4; data[i]=r;data[i+1]=g;data[i+2]=b;data[i+3]=255;
+  }
+}
+
+const RENDERERS = {
+  flow: renderOrganicFlow, shatter: renderGeometricShatter, glitch: renderGlitchSort,
+  synth: renderSynthWave, plasma: renderPlasma, flame: renderFractalFlame,
+  crystal: renderCrystalGrowth, neural: renderNeuralStatic, vortex: renderVortexField,
+  moire: renderMoireWeb,
+};
+
+async function generate() {
+  const btn = document.getElementById('gen-btn');
+  const progress = document.getElementById('progress');
+  const canvas = document.getElementById('canvas');
+  const placeholder = document.getElementById('placeholder');
+  const dlBtn = document.getElementById('dl-btn');
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+  progress.textContent = 'Rendering…';
+
+  await new Promise(r => setTimeout(r, 20));
+
+  const W = Math.min(2000, Math.max(100, parseInt(document.getElementById('w').value)||800));
+  const H = Math.min(2000, Math.max(100, parseInt(document.getElementById('h').value)||800));
+  const freq   = parseFloat(document.getElementById('freq').value);
+  const dist   = parseFloat(document.getElementById('dist').value);
+  const oct    = parseInt(document.getElementById('oct').value);
+  const seed   = parseInt(document.getElementById('seed').value);
+  const pal    = PALETTES[currentPalette];
+
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(W, H);
+  const noise = makePerlin(seed);
+
+  RENDERERS[currentMode](imgData.data, W, H, noise, pal, freq, oct, dist, seed);
+
+  ctx.putImageData(imgData, 0, 0);
+  placeholder.style.display = 'none';
+  canvas.style.display = 'block';
+
+  dlBtn.style.display = 'block';
+  dlBtn.href = canvas.toDataURL('image/png');
+  dlBtn.download = `covergen_${currentMode}_${currentPalette}_s${seed}.png`;
+
+  progress.style.display = 'none';
+  btn.disabled = false;
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Enter') generate(); });
+</script>
+</body>
+</html>
